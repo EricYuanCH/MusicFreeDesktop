@@ -23,18 +23,25 @@ jobs:
         run: |
           docker run --rm --platform=linux/arm64 \
             -v "${{ github.workspace }}":/work -w /work \
-            node:18-bullseye /bin/bash -lc "\
-              set -euo pipefail && \
-              apt-get update && apt-get install -y --no-install-recommends \
-                build-essential git curl ca-certificates python3 pkg-config \
-                libgtk-3-dev libnotify-dev libnss3 libxss1 libasound2 \
-                libx11-dev libxkbfile-dev libsecret-1-dev libssl-dev \
-                libsqlite3-dev libvips-dev && \
-              npm config set python /usr/bin/python3 && \
-              npm ci --no-audit --progress=false && \
-              npx electron-rebuild --force --parallel --version $(node -e \"const p=require('./package.json'); console.log((p.devDependencies && p.devDependencies.electron) || (p.dependencies && p.dependencies.electron));\") || true && \
-              # set env so electron-forge will make linux/arm64 artifacts
-              npm_config_platform=linux npm_config_arch=arm64 npm run make"
+            node:18-bullseye /bin/bash -s <<'BASH'
+          set -euo pipefail
+
+          apt-get update && apt-get install -y --no-install-recommends \
+            build-essential git curl ca-certificates python3 pkg-config \
+            libgtk-3-dev libnotify-dev libnss3 libxss1 libasound2 \
+            libx11-dev libxkbfile-dev libsecret-1-dev libssl-dev \
+            libsqlite3-dev libvips-dev
+
+          npm config set python /usr/bin/python3
+          npm ci --no-audit --progress=false
+
+          # 在容器内求出 electron 版本并重建原生模块
+          ELECTRON_VERSION="$(node -e 'const p=require(\"./package.json\"); console.log((p.devDependencies && p.devDependencies.electron) || (p.dependencies && p.dependencies.electron))')"
+          npx electron-rebuild --force --parallel --version "${ELECTRON_VERSION}"
+
+          # set env so electron-forge will make linux/arm64 artifacts
+          npm_config_platform=linux npm_config_arch=arm64 npm run make
+BASH
         timeout-minutes: 90
 
       - name: Find .deb artifacts
